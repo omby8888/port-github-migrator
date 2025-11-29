@@ -1,0 +1,53 @@
+name: Build and Release Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+            asset_name: port-migrate-linux-x64
+          - os: macos-latest
+            target: macos-x64
+            asset_name: port-migrate-macos-x64
+          - os: macos-latest
+            target: macos-arm64
+            asset_name: port-migrate-macos-arm64
+          - os: windows-latest
+            target: win-x64
+            asset_name: port-migrate-win-x64.exe
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Install pkg
+        run: npm install -g pkg
+
+      - name: Build binary
+        run: pkg dist/cli.js --target node18-${{ matrix.target }} --output bin/${{ matrix.asset_name }}
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: bin/${{ matrix.asset_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
