@@ -22,8 +22,6 @@ export class PortApiClient {
 
   private async authenticate(): Promise<void> {
     try {
-      Logger.info('🔐 Authenticating with Port API...');
-
       const response = await axios.post(`${this.baseUrl}/v1/auth/access_token`, {
         clientId: this.clientId,
         clientSecret: this.clientSecret,
@@ -31,7 +29,6 @@ export class PortApiClient {
 
       this._token = response.data.accessToken;
       this._tokenExpiration = new Date(Date.now() + response.data.expiresIn * 1000);
-      Logger.info('✅ Authentication successful');
     } catch (error) {
       throw new Error(`Authentication failed: ${this.getErrorMessage(error)}`);
     }
@@ -53,8 +50,6 @@ export class PortApiClient {
    */
   async getIntegrationVersion(installationId: string): Promise<string> {
     try {
-      Logger.log(`🔍 Fetching integration version for: ${installationId}`);
-
       const response = await axios.get(`${this.baseUrl}/v1/integration/${installationId}`, {
         headers: {
           Authorization: `Bearer ${await this.getToken()}`,
@@ -66,7 +61,6 @@ export class PortApiClient {
         throw new Error('Integration version not found in response');
       }
 
-      Logger.log(`✅ Integration version: ${version}`);
       return version;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {

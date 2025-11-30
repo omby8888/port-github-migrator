@@ -10,7 +10,7 @@
     "build": "tsc",
     "build:binary": "npm run build && pkg package.json",
     "dev": "ts-node src/cli.ts",
-    "migrate": "npx ts-node src/cli.ts",
+    "migrate": "npx ts-node src/cli.ts migrate githubRepository --dry-run",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\""

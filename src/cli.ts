@@ -46,25 +46,31 @@ program
 // Migrate command
 program
   .command('migrate [blueprint]')
-  .description('Migrate entities from a blueprint or all blueprints')
+  .description('Migrate entities from a specific blueprint or all blueprints')
+  .option('--all', 'Migrate all blueprints')
   .option('--dry-run', 'Show what would be migrated without making changes')
   .action(async (blueprint, options) => {
-    Logger.setVerbose(true);
     await validateCredentials(program.opts());
 
-    const migrateAll = !blueprint || blueprint === 'all';
     const config = createConfig(program.opts());
 
-    if (options.dryRun) {
-      Logger.log('🔍 DRY RUN MODE - No changes will be made\n');
-    }
-
     try {
+      // Suppress verbose output for integration version fetch
+      const wasVerbose = Logger.verbose;
+      Logger.setVerbose(false);
+
       const client = new PortApiClient(config.portApiUrl, config.clientId, config.clientSecret);
       const newDatasourceId = await getNewDatasourceId(client, config.newInstallationId);
 
+      Logger.setVerbose(wasVerbose);
+
       const migrator = new PortMigrator(config);
-      const stats = await migrator.migrate(newDatasourceId, migrateAll ? undefined : blueprint);
+      const migrateAll = options.all || !blueprint;
+      const stats = await migrator.migrate(
+        newDatasourceId,
+        migrateAll ? undefined : blueprint,
+        options.dryRun
+      );
       process.exit(stats.failedBatches > 0 ? 1 : 0);
     } catch (error) {
       Logger.error(
