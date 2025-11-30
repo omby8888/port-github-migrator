@@ -6,7 +6,7 @@
 set -e
 
 VERSION=${1:-latest}
-REPO="omby888/github-ocean-migration"
+REPO="omby8888/port-github-migrator"
 INSTALL_DIR="${HOME}/.local/bin"
 
 # Detect OS and architecture
