@@ -9,8 +9,8 @@ import (
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "port-github-migrator",
-		Short:        "Migrate Port entities from GitHub App to GitHub Ocean",
-		Long:         `A tool to safely migrate Port entities from the legacy GitHub App integration to the new GitHub Ocean integration.`,
+		Short:        "Migrate Ownership of Port entities from GitHub App to GitHub Ocean",
+		Long:         `A tool to safely migrate Ownership of Port entities from the legacy GitHub App integration to the new GitHub Ocean integration.`,
 		SilenceUsage: true,
 	}
 

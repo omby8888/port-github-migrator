@@ -11,8 +11,8 @@ import (
 func NewGetBlueprintsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "get-blueprints",
-		Short:        "Get all blueprints managed by the old installation",
-		Long:         "List all blueprints that are managed by the old GitHub App installation.",
+		Short:        "Get all blueprints that the old installation ingested entities into",
+		Long:         "List all blueprints that the old GitHub App installation ingested entities into.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			portURL, _ := cmd.Flags().GetString("port-url")

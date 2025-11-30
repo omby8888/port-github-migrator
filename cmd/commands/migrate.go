@@ -12,8 +12,8 @@ import (
 func NewMigrateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "migrate <blueprint>",
-		Short:        "Migrate entities from a specific blueprint or all blueprints",
-		Long:         `Migrate entities ownership from the old GitHub App integration to the new GitHub Ocean integration.`,
+		Short:        "Migrate Ownership of entities from a specific blueprint or all blueprints",
+		Long:         `Migrate Ownership of entities from the old GitHub App integration to the new GitHub Ocean integration.`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("❌ blueprint argument is required. Usage: migrate <blueprint|all>")
