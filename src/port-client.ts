@@ -74,8 +74,6 @@ export class PortApiClient {
 
   async getBlueprintsByDataSource(installationId: string): Promise<string[]> {
     try {
-      Logger.info(`📋 Fetching blueprints for installation: ${installationId}`);
-
       // Query the datasources API to get related blueprints
       const response = await axios.get(`${this.baseUrl}/v1/data-sources`, {
         headers: {
@@ -91,8 +89,6 @@ export class PortApiClient {
         throw new Error(`No data sources found for installation: ${installationId}`);
       }
 
-      Logger.info(`Found ${dataSources.length} data sources for installation`);
-
       // Get blueprints that use these data sources
       const blueprintsIdentifiers: Map<string, string> = new Map();
       dataSources
@@ -100,7 +96,6 @@ export class PortApiClient {
         .forEach((bp) => {
           blueprintsIdentifiers.set(bp.identifier, bp.identifier);
         });
-      Logger.info(`✅ Found ${blueprintsIdentifiers.size} affected blueprints`);
 
       return Array.from(blueprintsIdentifiers.values());
     } catch (error) {

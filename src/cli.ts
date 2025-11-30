@@ -13,7 +13,6 @@ import { PortApiClient } from './port-client';
 import { MigrationConfig } from './types';
 import { Logger } from './logger';
 import { DiffService } from './diff-service';
-import { FileWriter } from './file-writer';
 import { getNewDatasourceId } from './utils';
 
 config();
@@ -80,12 +79,10 @@ program
     }
   });
 
-// Get entities command
+// Get blueprints command
 program
-  .command('list-entities')
-  .description('List all entities from the old installation')
-  .option('--blueprint <blueprint>', 'Filter entities by blueprint')
-  .option('--output <file>', 'Output file for results')
+  .command('get-blueprints')
+  .description('Get all blueprints managed by the old installation')
   .option('--verbose', 'Show verbose output, default: false')
   .action(async (options) => {
     Logger.setVerbose(options.verbose);
@@ -95,58 +92,6 @@ program
     const client = new PortApiClient(config.portApiUrl, config.clientId, config.clientSecret);
 
     try {
-      const blueprintIds = await client.getBlueprintsByDataSource(config.oldInstallationId);
-
-      if (blueprintIds.length === 0) {
-        Logger.warn('No blueprints found');
-        return;
-      }
-
-      const allEntities: any[] = [];
-
-      for (const blueprintId of blueprintIds) {
-        const entities = await client.searchOldEntitiesByBlueprint(
-          blueprintId,
-          config.oldInstallationId
-        );
-        allEntities.push(
-          ...entities.map((e) => ({
-            identifier: e.identifier,
-            blueprint: blueprintId,
-          }))
-        );
-      }
-
-      // Save to file
-      const outputFile = options.output || `entities-${Date.now()}.json`;
-      const fileWriter = new FileWriter();
-      fileWriter.writeJson(outputFile, {
-        timestamp: new Date().toISOString(),
-        totalEntities: allEntities.length,
-        entities: allEntities,
-      });
-    } catch (error) {
-      Logger.error(
-        `❌ Failed to export entities: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-      process.exit(1);
-    }
-  });
-
-// List blueprints command
-program
-  .command('list-blueprints')
-  .description('List all blueprints managed by the old installation')
-  .option('--verbose', 'Show verbose output, default: false')
-  .action(async (options) => {
-    Logger.setVerbose(options.verbose);
-    await validateCredentials(program.opts());
-
-    const config = createConfig(program.opts());
-    const client = new PortApiClient(config.portApiUrl, config.clientId, config.clientSecret);
-
-    try {
-      Logger.log('Fetching blueprints...');
       const blueprintIds = await client.getBlueprintsByDataSource(config.oldInstallationId);
 
       if (blueprintIds.length === 0) {
@@ -165,9 +110,9 @@ program
     }
   });
 
-// Diff command
+// Get diff command
 program
-  .command('diff <sourceBlueprint> <targetBlueprint>')
+  .command('get-diff <sourceBlueprint> <targetBlueprint>')
   .description('Compare entities between source and target blueprints')
   .option('--output <file>', 'Export diff report to file')
   .option('--no-show-diffs', 'Hide detailed field-level diffs for changed entities')
