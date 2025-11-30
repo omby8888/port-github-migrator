@@ -17,10 +17,10 @@ case "$OS" in
   Darwin)
     case "$ARCH" in
       x86_64)
-        BINARY_NAME="port-migrate-macos-x64"
+        BINARY_NAME="port-github-migrator-macos-x64"
         ;;
       arm64)
-        BINARY_NAME="port-migrate-macos-arm64"
+        BINARY_NAME="port-github-migrator-macos-arm64"
         ;;
       *)
         echo "❌ Unsupported architecture: $ARCH"
@@ -29,10 +29,10 @@ case "$OS" in
     esac
     ;;
   Linux)
-    BINARY_NAME="port-migrate-linux-x64"
+    BINARY_NAME="port-github-migrator-linux-x64"
     ;;
   MINGW*|MSYS*|CYGWIN*)
-    BINARY_NAME="port-migrate-win-x64.exe"
+    BINARY_NAME="port-github-migrator-win-x64.exe"
     ;;
   *)
     echo "❌ Unsupported OS: $OS"

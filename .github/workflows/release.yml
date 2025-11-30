@@ -16,16 +16,16 @@ jobs:
         include:
           - os: ubuntu-latest
             target: linux-x64
-            asset_name: port-migrate-linux-x64
+            asset_name: port-github-migrator-linux-x64
           - os: macos-latest
             target: macos-x64
-            asset_name: port-migrate-macos-x64
+            asset_name: port-github-migrator-macos-x64
           - os: macos-latest
             target: macos-arm64
-            asset_name: port-migrate-macos-arm64
+            asset_name: port-github-migrator-macos-arm64
           - os: windows-latest
             target: win-x64
-            asset_name: port-migrate-win-x64.exe
+            asset_name: port-github-migrator-win-x64.exe
 
     steps:
       - uses: actions/checkout@v3
