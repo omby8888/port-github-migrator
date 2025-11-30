@@ -8,11 +8,14 @@ import (
 
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "port-github-migrator",
-		Short: "Migrate Port entities from GitHub App to GitHub Ocean",
-		Long: `A tool to safely migrate Port entities from the legacy GitHub App integration 
-to the new GitHub Ocean integration.`,
+		Use:          "port-github-migrator",
+		Short:        "Migrate Port entities from GitHub App to GitHub Ocean",
+		Long:         `A tool to safely migrate Port entities from the legacy GitHub App integration to the new GitHub Ocean integration.`,
+		SilenceUsage: true,
 	}
+
+	// Hide the auto-generated completion and help commands
+	cmd.CompletionOptions.HiddenDefaultCmd = true
 
 	cmd.PersistentFlags().String("port-url", getEnv("PORT_API_URL", "https://api.getport.io"), "Port API URL")
 	cmd.PersistentFlags().String("client-id", getEnv("PORT_CLIENT_ID", ""), "Port API Client ID")

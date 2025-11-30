@@ -105,11 +105,11 @@ func (s *Service) CompareBlueprints(sourceBP, targetBP, oldInstallID, newInstall
 // PrintSummary prints the diff summary with entity identifiers
 func (s *Service) PrintSummary(result *models.DiffResult) {
 	fmt.Println()
-	fmt.Printf("📊 %s → %s\n", result.SourceBlueprint, result.TargetBlueprint)
+	fmt.Printf("📊 %s (old) → %s (new)\n", result.SourceBlueprint, result.TargetBlueprint)
 	fmt.Println("   " + repeatString("─", 40))
 	fmt.Printf("   ✅ %d identical\n", result.Summary.Identical)
 	if result.Summary.NotMigrated > 0 {
-		fmt.Printf("   ⚠️  %d not migrated\n", result.Summary.NotMigrated)
+		fmt.Printf("   ⚠️  %d not migrated (only in old)\n", result.Summary.NotMigrated)
 		for _, change := range result.Changes {
 			if change.Type == "notMigrated" {
 				fmt.Printf("       • %s\n", change.Identifier)
@@ -118,7 +118,7 @@ func (s *Service) PrintSummary(result *models.DiffResult) {
 	}
 	fmt.Printf("   📝 %d changed\n", result.Summary.Changed)
 	if result.Summary.Orphaned > 0 {
-		fmt.Printf("   ❌ %d orphaned\n", result.Summary.Orphaned)
+		fmt.Printf("   ❌ %d orphaned (only in new)\n", result.Summary.Orphaned)
 		for _, change := range result.Changes {
 			if change.Type == "orphaned" {
 				fmt.Printf("       • %s\n", change.Identifier)
@@ -154,6 +154,10 @@ func (s *Service) PrintDetailedDiffs(changes []models.EntityChange, limit int) {
 		if shown >= limit {
 			fmt.Printf("⏭️  Showing %d of %d changed entities. Use --limit to show more.\n", limit, changedCount)
 			break
+		}
+
+		if shown > 0 {
+			fmt.Println()
 		}
 
 		fmt.Printf("  • %s\n", change.Identifier)
