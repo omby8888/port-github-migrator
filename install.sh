@@ -6,7 +6,7 @@
 set -e
 
 VERSION=${1:-latest}
-REPO="yourusername/github-ocean-migration"
+REPO="omby888/github-ocean-migration"
 INSTALL_DIR="${HOME}/.local/bin"
 
 # Detect OS and architecture
@@ -48,20 +48,29 @@ echo "   Binary: $BINARY_NAME"
 mkdir -p "$INSTALL_DIR"
 
 # Download binary
-DOWNLOAD_URL="https://github.com/$REPO/releases/$VERSION/download/$BINARY_NAME"
+if [ "$VERSION" = "latest" ]; then
+  DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/$BINARY_NAME"
+else
+  DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/$BINARY_NAME"
+fi
 echo "📥 Downloading from: $DOWNLOAD_URL"
 
-curl -L "$DOWNLOAD_URL" -o "$INSTALL_DIR/port-migrate"
-chmod +x "$INSTALL_DIR/port-migrate"
+if ! curl -L --fail "$DOWNLOAD_URL" -o "$INSTALL_DIR/port-github-migrator"; then
+  echo "❌ Failed to download binary. Check your connection or release version."
+  exit 1
+fi
+chmod +x "$INSTALL_DIR/port-github-migrator"
 
 # Add to PATH if not already there
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
   echo ""
-  echo "⚠️  To use 'port-migrate' from anywhere, add this to your shell profile:"
+  echo "⚠️  To use 'port-github-migrator' from anywhere, add this to your shell profile:"
   echo "   export PATH=\"\$PATH:$INSTALL_DIR\""
+  echo ""
+  echo "Then run: port-github-migrator --version"
 else
   echo ""
   echo "✅ Installation complete!"
-  echo "   Run 'port-migrate' to start"
+  echo "   Run 'port-github-migrator --version' to verify"
 fi
 

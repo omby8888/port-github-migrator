@@ -1,329 +1,166 @@
 # Port GitHub App to GitHub Ocean Migration Tool
 
-A comprehensive migration tool to migrate Port entities from the old GitHub App integration to the new GitHub Ocean integration. This tool handles entity ownership transfer by updating the `datasource` property of all affected entities.
+A CLI tool to safely migrate Port entities from the legacy GitHub App integration to the new GitHub Ocean integration.
 
 ## Overview
 
-The migration process follows these steps:
-
-1. **Fetch Affected Blueprints**: Query the Port datasources API to identify all blueprints associated with the old GitHub App installation
-2. **Search Entities**: For each blueprint, use the Port search API to retrieve all entities
-3. **Bulk Update Datasource**: Patch all entities in batches of 100 to update their datasource ownership to the new GitHub Ocean integration
-
-## Features
-
-- ✅ **Batch Processing**: Efficiently processes entities in configurable batches (default: 100)
-- ✅ **Error Handling**: Comprehensive error handling with detailed error reporting
-- ✅ **Progress Tracking**: Real-time progress updates and migration statistics
-- ✅ **Configurable**: Support for environment variables and command-line arguments
-- ✅ **Type-Safe**: Full TypeScript support for reliability
-- ✅ **Detailed Reporting**: Migration summary with success/failure statistics
+This tool helps you migrate entity ownership from the old GitHub App integration to the new GitHub Ocean integration in Port. It provides commands to compare entities and perform controlled, blueprint-by-blueprint migrations.
 
 ## Installation
 
-```bash
-# Clone or navigate to the project directory
-cd github-ocean-migration
+### Quick Install (Recommended)
 
-# Install dependencies
-npm install
+Download and install the binary for your platform:
+
+```bash
+curl -sL https://raw.githubusercontent.com/your-org/port-github-migration/main/install.sh | bash
+```
+
+This will automatically download the correct binary for your OS (macOS/Linux) and add it to your PATH.
+
+### Manual Installation
+
+1. Download the binary for your platform from [GitHub Releases](https://github.com/your-org/port-github-migration/releases)
+2. Make it executable: `chmod +x port-github-migrator-*`
+3. Move to your PATH: `sudo mv port-github-migrator-* /usr/local/bin/port-github-migrator`
+
+### Verify Installation
+
+```bash
+port-github-migrator --version
 ```
 
 ## Configuration
 
-### Via Command Line Arguments
+### Environment Variables
 
-```bash
-npx ts-node src/index.ts \
-  --client-id YOUR_CLIENT_ID \
-  --client-secret YOUR_CLIENT_SECRET \
-  --installation-id OLD_INSTALLATION_ID \
-  --new-datasource-id github-ocean \
-  --port-url https://api.getport.io
-```
-
-### Via Environment Variables
-
-Create a `.env` file:
+Create a `.env` file with your Port API credentials:
 
 ```env
 PORT_API_URL=https://api.getport.io
-PORT_CLIENT_ID=your-client-id
-PORT_CLIENT_SECRET=your-client-secret
+PORT_CLIENT_ID=your_client_id
+PORT_CLIENT_SECRET=your_client_secret
+OLD_INSTALLATION_ID=your_old_github_app_installation_id
+NEW_INSTALLATION_ID=your_new_ocean_installation_id
 ```
 
-Then run:
+Alternatively, pass these as CLI flags:
 
 ```bash
-npx ts-node src/index.ts \
-  --installation-id OLD_INSTALLATION_ID \
-  --new-datasource-id github-ocean
+port-github-migrator migrate githubRepository \
+  --client-id YOUR_ID \
+  --client-secret YOUR_SECRET \
+  --old-installation-id OLD_ID \
+  --new-installation-id NEW_ID
 ```
 
-### Argument Reference
-
-| Argument | Short | Required | Description |
-|----------|-------|----------|-------------|
-| `--client-id` | `-cid` | Yes | Port API Client ID |
-| `--client-secret` | `-cs` | Yes | Port API Client Secret |
-| `--installation-id` | `-iid` | Yes | Old GitHub App Installation ID |
-| `--port-url` | `-url` | No | Port API URL (default: https://api.getport.io) |
-| `--new-datasource-id` | `-nds` | No | New GitHub Ocean datasource ID (default: github-ocean) |
-| `--help` | `-h` | No | Show help message |
-
-## Usage Examples
-
-### Basic Usage
+Or use all flags without `.env`:
 
 ```bash
-npx ts-node src/index.ts \
-  --client-id abc123 \
-  --client-secret secret456 \
-  --installation-id old-github-app-123 \
-  --new-datasource-id github-ocean
+export PORT_CLIENT_ID=YOUR_ID
+export PORT_CLIENT_SECRET=YOUR_SECRET
+export OLD_INSTALLATION_ID=OLD_ID
+export NEW_INSTALLATION_ID=NEW_ID
+
+port-github-migrator migrate githubRepository
 ```
 
-### Using Compiled JavaScript
+## Commands
+
+### migrate
+
+Migrate entities from a specific blueprint or all blueprints to the new integration.
 
 ```bash
-# Build the project
-npm run build
-
-# Run the migration
-npm run migrate -- \
-  --client-id abc123 \
-  --client-secret secret456 \
-  --installation-id old-github-app-123 \
-  --new-datasource-id github-ocean
+port-github-migrator migrate [blueprint] [options]
 ```
 
-### With Environment Variables
+**Options:**
+
+- `--all` - Migrate all blueprints (default if no blueprint specified)
+- `--dry-run` - Preview what would be migrated without making changes
+
+**Examples:**
 
 ```bash
-# Create .env file
-PORT_CLIENT_ID=abc123
-PORT_CLIENT_SECRET=secret456
+# Migrate a single blueprint
+port-github-migrator migrate githubRepository
 
-# Run migration
-npx ts-node src/index.ts \
-  --installation-id old-github-app-123 \
-  --new-datasource-id github-ocean
+# Dry run to see what would happen
+port-github-migrator migrate githubRepository --dry-run
+
+# Migrate all blueprints
+port-github-migrator migrate --all
 ```
 
-## How It Works
+### get-blueprints
 
-### Step 1: Fetch Affected Blueprints
+List all blueprints managed by the old GitHub App integration.
 
-The tool queries the Port API to fetch all blueprints that have data sources associated with the old GitHub App installation:
-
-```
-GET /v1/datasources?installationId={installationId}
+```bash
+port-github-migrator get-blueprints [options]
 ```
 
-### Step 2: Search for Entities
+**Options:**
 
-For each blueprint, the tool searches for all associated entities:
+- `--verbose` - Show detailed output
 
-```
-POST /v1/entities/search
-Query: { filter: { blueprintId: "{blueprintId}" } }
-Params: include=["identifier"], exclude_calculation_properties=true
-```
+### get-diff
 
-### Step 3: Bulk Update Datasource
+Compare entities between source and target blueprints to identify differences.
 
-Entities are patched in batches to update their datasource:
-
-```
-PATCH /v1/blueprints/{blueprintId}/datasource/bulk
-{
-  "entitiesIdentifiers": ["entity1", "entity2", ...],
-  "datasource": "github-ocean"
-}
+```bash
+port-github-migrator get-diff <sourceBlueprint> <targetBlueprint> [options]
 ```
 
-## Output Example
+**Options:**
 
-```
-🚀 Starting Port Entity Migration
+- `--output <file>` - Export detailed diff report to JSON file
+- `--show-diffs` - Display field-level differences for changed entities (default: enabled)
+- `--limit <n>` - Limit shown changed entities (default: 10)
+- `--verbose` - Show detailed output
 
-Configuration:
-  📍 Port API URL: https://api.getport.io
-  🔑 Old Installation ID: old-github-app-123
-  🔄 New Datasource ID: github-ocean
+**Examples:**
 
-🔐 Authenticating with Port API...
-✅ Authentication successful
+```bash
+# Compare blueprints
+port-github-migrator get-diff githubRepository githubRepository
 
-📊 Step 1: Fetching affected blueprints
+# Export detailed report
+port-github-migrator get-diff githubRepository githubRepository --output diff-report.json
 
-📋 Fetching blueprints for installation: old-github-app-123
-Found 2 data sources for installation
-✅ Found 3 affected blueprints
-
-📋 Processing blueprint: Service
-──────────────────────────────────
-🔍 Searching entities for blueprint: Service
-✅ Found 45 entities for blueprint
-
-🔄 Patching 45 entities in batches of 100...
-
-  Batch 1/1: Patching 45 entities...
-  ✅ Successfully patched 45 entities to datasource: github-ocean
-
-═══════════════════════════════════════════════════════════════════════════
-📊 MIGRATION SUMMARY REPORT
-═══════════════════════════════════════════════════════════════════════════
-
-✅ Migration Statistics:
-  • Total Blueprints: 3
-  • Total Entities Migrated: 128
-  • Total Batches: 2
-  • Successful Batches: 2
-  • Failed Batches: 0
-
-✅ No errors encountered
-
-═══════════════════════════════════════════════════════════════════════════
-
-🎉 Migration completed successfully!
+# Show more changed entities
+port-github-migrator get-diff githubRepository githubRepository --limit 50
 ```
 
-## API Reference
+## Migration Guide
 
-### PortApiClient
-
-Main client for interacting with the Port API.
-
-#### Constructor
-
-```typescript
-new PortApiClient(baseUrl: string, clientId: string, clientSecret: string)
-```
-
-#### Methods
-
-- `authenticate(): Promise<void>` - Authenticate with Port API
-- `getBlueprintsByDataSource(installationId: string): Promise<BlueprintInfo[]>` - Fetch blueprints for a data source
-- `searchEntitiesByBlueprint(blueprintIdentifier: string): Promise<Entity[]>` - Search entities for a blueprint
-- `patchEntitiesDatasourceBulk(blueprintIdentifier: string, entitiesIdentifiers: string[], newDatasource: string): Promise<void>` - Patch entities in bulk
-
-### PortMigrator
-
-Orchestrates the migration process.
-
-#### Constructor
-
-```typescript
-new PortMigrator(config: MigrationConfig)
-```
-
-#### Methods
-
-- `migrate(newDatasourceId: string): Promise<MigrationStats>` - Execute the full migration
-
-## Error Handling
-
-The tool provides comprehensive error handling:
-
-- **Authentication Errors**: Failed API credentials or session issues
-- **Network Errors**: Connection timeouts or unreachable endpoints
-- **Validation Errors**: Invalid parameters or missing required fields
-- **Batch Errors**: Individual batch failures don't stop the entire migration
-- **API Errors**: Detailed error messages from the Port API
-
-All errors are collected and reported in the final migration summary.
+See [MIGRATION.md](./MIGRATION.md) for detailed step-by-step instructions on migrating from GitHub App to GitHub Ocean.
 
 ## Troubleshooting
 
-### Authentication Failed
+### Invalid Credentials
 
-```
-❌ Authentication failed: Unauthorized
-```
+If you get "Authentication failed: Invalid credentials", verify:
 
-- Verify your `clientId` and `clientSecret` are correct
-- Check that your Port workspace allows API access
+- Your credentials are correct in Port
+- Your API token hasn't expired
+- You're using the correct Port API URL
 
-### No Blueprints Found
+### No Entities Found
 
-```
-⚠️ No blueprints found for the specified installation
-```
+If "No entities found to migrate" appears:
 
-- Verify the `installationId` is correct
-- Ensure the old GitHub App integration has associated blueprints
+- Ensure the blueprint has entities created by the old GitHub App integration
+- Verify the `OLD_INSTALLATION_ID` is correct
 
-### Batch Failures
+### Missing Blueprints
 
-If some batches fail:
+If blueprints don't appear in `get-blueprints`:
 
-1. Check the error details in the migration report
-2. Verify the entity identifiers are correct
-3. Ensure the new datasource exists and is accessible
-
-### Network Timeout
-
-```
-❌ Request timeout
-```
-
-- Increase the timeout value in `port-client.ts`
-- Check your internet connection
-- Verify the Port API URL is accessible
-
-## Development
-
-### Building
-
-```bash
-npm run build
-```
-
-### Development Mode
-
-```bash
-npm run dev -- --client-id ... --client-secret ... --installation-id ...
-```
-
-### Linting
-
-```bash
-npm run lint
-```
-
-## Type Definitions
-
-The tool includes comprehensive TypeScript type definitions:
-
-- `MigrationConfig` - Configuration parameters
-- `BlueprintInfo` - Blueprint metadata
-- `Entity` - Entity information
-- `DataSource` - Data source metadata
-- `MigrationStats` - Migration statistics and results
-
-## Performance Considerations
-
-- **Batch Size**: Default is 100 entities per batch. Adjust in `src/migrator.ts` if needed
-- **Concurrent Requests**: Batches are processed sequentially to avoid API rate limiting
-- **API Timeouts**: Default timeout is 30 seconds per request
-
-## Security
-
-- **Credentials**: Never commit `.env` files with real credentials
-- **API Keys**: Treat `clientId` and `clientSecret` as secrets
-- **HTTPS**: Ensure you're using HTTPS for all API communications
+- Ensure the old GitHub App integration is still active in Port
+- Verify the installation ID matches your GitHub App installation
 
 ## Support
 
-For issues or questions:
-
-1. Check the troubleshooting section above
-2. Review the migration logs for detailed error messages
-3. Verify your Port API credentials and permissions
-4. Ensure all entity identifiers are valid
-
-## License
-
-MIT
-
+For issues or questions, contact Port support or refer to the [Port documentation](https://docs.getport.io).
