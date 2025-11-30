@@ -11,12 +11,14 @@ import { join } from 'path';
 import { PortMigrator } from './migrator';
 import { PortApiClient } from './port-client';
 import { MigrationConfig } from './types';
+import { Logger } from './logger';
+import { DiffService } from './diff-service';
+import { FileWriter } from './file-writer';
+import { getNewDatasourceId } from './utils';
 
 config();
 
-const packageJson = JSON.parse(
-  readFileSync(join(__dirname, '../package.json'), 'utf-8')
-);
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
 
 const program = new Command();
 
@@ -29,10 +31,17 @@ program
 program
   .option('--client-id <id>', 'Port API Client ID', process.env.PORT_CLIENT_ID)
   .option('--client-secret <secret>', 'Port API Client Secret', process.env.PORT_CLIENT_SECRET)
-  .option('--old-id <id>', 'Old GitHub App Installation ID', process.env.OLD_INSTALLATION_ID)
-  .option('--new-id <id>', 'New GitHub Ocean Installation ID', process.env.NEW_INSTALLATION_ID || 'github-ocean')
-  .option('--port-url <url>', 'Port API URL', process.env.PORT_API_URL || 'https://api.getport.io')
-  .option('--output <file>', 'Output file for results');
+  .option(
+    '--old-installation-id <id>',
+    'Old GitHub App Installation ID',
+    process.env.OLD_INSTALLATION_ID
+  )
+  .option(
+    '--new-installation-id <id>',
+    'New GitHub Ocean Installation ID',
+    process.env.NEW_INSTALLATION_ID
+  )
+  .option('--port-url <url>', 'Port API URL', process.env.PORT_API_URL || 'https://api.getport.io');
 
 // Migrate command
 program
@@ -40,83 +49,80 @@ program
   .description('Migrate entities from a blueprint or all blueprints')
   .option('--dry-run', 'Show what would be migrated without making changes')
   .action(async (blueprint, options) => {
+    Logger.setVerbose(true);
     await validateCredentials(program.opts());
 
     const migrateAll = !blueprint || blueprint === 'all';
     const config = createConfig(program.opts());
 
-    const migrator = new PortMigrator(config);
-
     if (options.dryRun) {
-      console.log('🔍 DRY RUN MODE - No changes will be made\n');
+      Logger.log('🔍 DRY RUN MODE - No changes will be made\n');
     }
 
     try {
-      const stats = await migrator.migrate(program.opts().newId, migrateAll ? undefined : blueprint);
+      const client = new PortApiClient(config.portApiUrl, config.clientId, config.clientSecret);
+      const newDatasourceId = await getNewDatasourceId(client, config.newInstallationId);
+
+      const migrator = new PortMigrator(config);
+      const stats = await migrator.migrate(newDatasourceId, migrateAll ? undefined : blueprint);
       process.exit(stats.failedBatches > 0 ? 1 : 0);
     } catch (error) {
-      console.error(`\n❌ Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+      Logger.error(
+        `❌ Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       process.exit(1);
     }
   });
 
 // Get entities command
 program
-  .command('get-entities')
-  .description('Export all entities from the old installation to a file')
-  .action(async () => {
+  .command('list-entities')
+  .description('List all entities from the old installation')
+  .option('--blueprint <blueprint>', 'Filter entities by blueprint')
+  .option('--output <file>', 'Output file for results')
+  .option('--verbose', 'Show verbose output, default: false')
+  .action(async (options) => {
+    Logger.setVerbose(options.verbose);
     await validateCredentials(program.opts());
 
     const config = createConfig(program.opts());
     const client = new PortApiClient(config.portApiUrl, config.clientId, config.clientSecret);
 
     try {
-      console.log('🔐 Authenticating with Port API...');
-      await client.authenticate();
-
-      console.log('📋 Fetching blueprints...');
       const blueprintIds = await client.getBlueprintsByDataSource(config.oldInstallationId);
 
       if (blueprintIds.length === 0) {
-        console.log('⚠️  No blueprints found');
+        Logger.warn('No blueprints found');
         return;
       }
-
-      console.log(`✅ Found ${blueprintIds.length} blueprints\n`);
 
       const allEntities: any[] = [];
 
       for (const blueprintId of blueprintIds) {
-        console.log(`🔍 Fetching entities for blueprint: ${blueprintId}`);
-        const entities = await client.searchEntitiesByBlueprint(blueprintId, config.oldInstallationId);
+        const entities = await client.searchOldEntitiesByBlueprint(
+          blueprintId,
+          config.oldInstallationId
+        );
         allEntities.push(
           ...entities.map((e) => ({
             identifier: e.identifier,
             blueprint: blueprintId,
           }))
         );
-        console.log(`   Found ${entities.length} entities`);
       }
 
       // Save to file
-      const outputFile = program.opts().output || `entities-${Date.now()}.json`;
-      const fs = require('fs');
-      fs.writeFileSync(
-        outputFile,
-        JSON.stringify(
-          {
-            timestamp: new Date().toISOString(),
-            totalEntities: allEntities.length,
-            entities: allEntities,
-          },
-          null,
-          2
-        )
-      );
-
-      console.log(`\n✅ Exported ${allEntities.length} entities to: ${outputFile}`);
+      const outputFile = options.output || `entities-${Date.now()}.json`;
+      const fileWriter = new FileWriter();
+      fileWriter.writeJson(outputFile, {
+        timestamp: new Date().toISOString(),
+        totalEntities: allEntities.length,
+        entities: allEntities,
+      });
     } catch (error) {
-      console.error(`\n❌ Failed to export entities: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+      Logger.error(
+        `❌ Failed to export entities: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       process.exit(1);
     }
   });
@@ -125,68 +131,98 @@ program
 program
   .command('list-blueprints')
   .description('List all blueprints managed by the old installation')
-  .action(async () => {
+  .option('--verbose', 'Show verbose output, default: false')
+  .action(async (options) => {
+    Logger.setVerbose(options.verbose);
     await validateCredentials(program.opts());
 
     const config = createConfig(program.opts());
     const client = new PortApiClient(config.portApiUrl, config.clientId, config.clientSecret);
 
     try {
-      console.log('🔐 Authenticating with Port API...');
-      await client.authenticate();
-
-      console.log('📋 Fetching blueprints...\n');
+      Logger.log('Fetching blueprints...');
       const blueprintIds = await client.getBlueprintsByDataSource(config.oldInstallationId);
 
       if (blueprintIds.length === 0) {
-        console.log('⚠️  No blueprints found');
+        Logger.warn('No blueprints found.');
         return;
       }
 
-      console.log(`✅ Found ${blueprintIds.length} blueprints:\n`);
-      blueprintIds.forEach((id, idx) => {
-        console.log(`  ${idx + 1}. ${id}`);
+      Logger.log(`NAME                 `);
+      Logger.log(`────────────────────────`);
+      blueprintIds.forEach((id) => {
+        Logger.log(`${id}`);
       });
     } catch (error) {
-      console.error(`\n❌ Failed to list blueprints: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+      Logger.error(`error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       process.exit(1);
     }
   });
 
-// Validate command
+// Diff command
 program
-  .command('validate')
-  .description('Validate credentials and connectivity')
-  .action(async () => {
-    await validateCredentials(program.opts());
+  .command('diff <sourceBlueprint> <targetBlueprint>')
+  .description('Compare entities between source and target blueprints')
+  .option('--output <file>', 'Export diff report to file')
+  .option('--no-show-diffs', 'Hide detailed field-level diffs for changed entities')
+  .option('--limit <n>', 'Limit shown changed entities (default: 10)', '10')
+  .option('--verbose', 'Show verbose output, default: false')
+  .action(async (sourceBlueprint, targetBlueprint, options) => {
+    Logger.setVerbose(options.verbose);
 
-    const config = createConfig(program.opts());
-    const client = new PortApiClient(config.portApiUrl, config.clientId, config.clientSecret);
+    const target = targetBlueprint;
 
     try {
-      console.log('🔐 Testing authentication...');
-      await client.authenticate();
-      console.log('✅ Authentication successful\n');
+      await validateCredentials(program.opts());
 
-      console.log('📋 Fetching blueprints...');
-      const blueprints = await client.getBlueprintsByDataSource(config.oldInstallationId);
-      console.log(`✅ Found ${blueprints.length} blueprints\n`);
+      const config = createConfig(program.opts());
 
-      console.log('✅ All validations passed!');
+      if (!config.newInstallationId) {
+        Logger.error('❌ Error: --new-installation-id is required for diff command');
+        process.exit(1);
+      }
+
+      const client = new PortApiClient(config.portApiUrl, config.clientId, config.clientSecret);
+
+      // Create diff service
+      const diffService = new DiffService(client);
+
+      // Run comparison
+      const result = await diffService.compareBlueprint(
+        sourceBlueprint,
+        target,
+        config.oldInstallationId,
+        config.newInstallationId
+      );
+
+      // Print summary
+      diffService.printSummary(result);
+
+      // Show detailed diffs by default (unless --no-show-diffs)
+      if (options.showDiffs && result.diff.changed.length > 0) {
+        const limit = parseInt(options.limit, 10);
+        diffService.printDetailedDiffs(result.diff.changed, limit);
+      }
+
+      // Export if requested
+      if (options.output) {
+        diffService.exportDiff(result, options.output);
+      }
+
+      process.exit(0);
     } catch (error) {
-      console.error(`\n❌ Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+      Logger.error(`❌ Diff failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       process.exit(1);
     }
   });
 
 // Helper functions
 async function validateCredentials(opts: any) {
-  const required = ['clientId', 'clientSecret', 'oldId'];
+  const required = ['clientId', 'clientSecret', 'oldInstallationId'];
   const missing = required.filter((key) => !opts[key.charAt(0).toLowerCase() + key.slice(1)]);
 
   if (missing.length > 0) {
-    console.error(`❌ Missing required options: ${missing.join(', ')}`);
-    console.error('\nUse --help for more information');
+    Logger.error(`❌ Missing required options: ${missing.join(', ')}`);
     process.exit(1);
   }
 }
@@ -196,8 +232,8 @@ function createConfig(opts: any): MigrationConfig {
     portApiUrl: opts.portUrl,
     clientId: opts.clientId,
     clientSecret: opts.clientSecret,
-    oldInstallationId: opts.oldId,
-    newInstallationId: opts.newId,
+    oldInstallationId: opts.oldInstallationId,
+    newInstallationId: opts.newInstallationId,
   };
 }
 

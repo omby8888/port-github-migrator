@@ -5,6 +5,7 @@
 import { PortApiClient } from './port-client';
 import { MigrationConfig, MigrationStats, Entity } from './types';
 import * as readline from 'readline';
+import { Logger } from './logger';
 
 const BATCH_SIZE = 100;
 
@@ -34,9 +35,9 @@ export class PortMigrator {
   /**
    * Pause and wait for user confirmation
    */
-  private async waitForUserInput(prompt: string = 'Press ENTER to continue...'): Promise<void> {
+  private async waitForUserInput(prompt: string = 'Continue? [y/N] '): Promise<void> {
     return new Promise((resolve) => {
-      this.rl.question(`\n⏸️  ${prompt}`, () => {
+      this.rl.question(prompt, () => {
         resolve();
       });
     });
@@ -47,11 +48,7 @@ export class PortMigrator {
    */
   async migrate(newDatasourceId: string, singleBlueprint?: string): Promise<MigrationStats> {
     try {
-      console.log('\n🚀 Starting Port Entity Migration\n');
-      console.log('Configuration:');
-      console.log(`  📍 Port API URL: ${this.config.portApiUrl}`);
-      console.log(`  🔑 Old Installation ID: ${this.config.oldInstallationId}`);
-      console.log(`  🔄 New Installation ID: ${newDatasourceId}\n`);
+      Logger.info('Fetching blueprints...');
 
       let blueprintsIdentifiers = await this.client.getBlueprintsByDataSource(
         this.config.oldInstallationId
@@ -59,7 +56,7 @@ export class PortMigrator {
       this.stats.totalBlueprints = blueprintsIdentifiers.length;
 
       if (blueprintsIdentifiers.length === 0) {
-        console.log('⚠️  No blueprints found for the specified installation');
+        Logger.warn('⚠️  No blueprints found for the specified installation');
         this.rl.close();
         return this.stats;
       }
@@ -68,30 +65,27 @@ export class PortMigrator {
       if (singleBlueprint) {
         blueprintsIdentifiers = blueprintsIdentifiers.filter((bp) => bp === singleBlueprint);
         if (blueprintsIdentifiers.length === 0) {
-          console.log(`⚠️  Blueprint not found: ${singleBlueprint}`);
+          Logger.warn(`⚠️  Blueprint not found: ${singleBlueprint}`);
           this.rl.close();
           return this.stats;
         }
       }
 
       // Show all blueprints before starting
-      console.log('\n📋 BLUEPRINTS TO MIGRATE:\n');
-      blueprintsIdentifiers.forEach((id, idx) => {
-        console.log(`  ${idx + 1}. ${id}`);
+      Logger.log('\nBlueprintsToMigrate:');
+      blueprintsIdentifiers.forEach((id) => {
+        Logger.log(`  - ${id}`);
       });
-      console.log(`\n📊 Total: ${blueprintsIdentifiers.length} blueprints\n`);
 
       // Wait for user confirmation before starting
-      await this.waitForUserInput('Ready to begin migration? Press ENTER to start...');
+      await this.waitForUserInput(`\nMigrate ${blueprintsIdentifiers.length} blueprint(s)? [y/N] `);
 
       // Step 3: For each blueprint, fetch entities and patch them
       for (let i = 0; i < blueprintsIdentifiers.length; i++) {
         const blueprintIdentifier = blueprintsIdentifiers[i];
-        console.log(`\n${'='.repeat(60)}`);
-        console.log(
-          `📍 Blueprint ${i + 1}/${blueprintsIdentifiers.length}: ${blueprintIdentifier}`
+        Logger.log(
+          `\n[${i + 1}/${blueprintsIdentifiers.length}] Migrating ${blueprintIdentifier}...`
         );
-        console.log(`${'='.repeat(60)}\n`);
 
         // Search and migrate entities for this blueprint right before migrating
         await this.migrateBlueprint(
@@ -102,9 +96,7 @@ export class PortMigrator {
 
         // Wait between blueprints (except after the last one)
         if (i < blueprintsIdentifiers.length - 1) {
-          await this.waitForUserInput(
-            `Blueprint ${i + 1} complete. Press ENTER for next blueprint...`
-          );
+          await this.waitForUserInput(`Continue? [y/N] `);
         }
       }
 
@@ -115,7 +107,7 @@ export class PortMigrator {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error occurred during migration';
-      console.error(`\n❌ Migration failed: ${errorMessage}\n`);
+      Logger.error(`\n❌ Migration failed: ${errorMessage}\n`);
       this.stats.errors.push(errorMessage);
       this.rl.close();
       throw error;
@@ -129,32 +121,32 @@ export class PortMigrator {
     blueprintsIdentifiers: string[],
     oldInstallationId: string
   ): Promise<void> {
-    console.log('\n📋 BLUEPRINTS TO MIGRATE:\n');
-    console.log('The following blueprints will be processed:');
-    console.log('');
+    Logger.log('\n📋 BLUEPRINTS TO MIGRATE:\n');
+    Logger.log('The following blueprints will be processed:');
+    Logger.log('');
 
     let totalEntities = 0;
 
     for (let i = 0; i < blueprintsIdentifiers.length; i++) {
       const blueprintIdentifier = blueprintsIdentifiers[i];
       try {
-        const entities = await this.client.searchEntitiesByBlueprint(
+        const entities = await this.client.searchOldEntitiesByBlueprint(
           blueprintIdentifier,
           oldInstallationId
         );
         totalEntities += entities.length;
-        console.log(`  ${i + 1}. ${blueprintIdentifier}`);
-        console.log(`     └─ ${entities.length} entities to migrate`);
+        Logger.log(`  ${i + 1}. ${blueprintIdentifier}`);
+        Logger.log(`     └─ ${entities.length} entities to migrate`);
       } catch (error) {
-        console.log(`  ${i + 1}. ${blueprintIdentifier}`);
-        console.log(`     └─ (error fetching count)`);
+        Logger.log(`  ${i + 1}. ${blueprintIdentifier}`);
+        Logger.log(`     └─ (error fetching count)`);
       }
     }
 
-    console.log(`\n📊 Summary:`);
-    console.log(`   • Total Blueprints: ${blueprintsIdentifiers.length}`);
-    console.log(`   • Total Entities: ${totalEntities}`);
-    console.log(`${'─'.repeat(60)}`);
+    Logger.log(`\n📊 Summary:`);
+    Logger.log(`   • Total Blueprints: ${blueprintsIdentifiers.length}`);
+    Logger.log(`   • Total Entities: ${totalEntities}`);
+    Logger.log(`${'─'.repeat(60)}`);
   }
 
   /**
@@ -166,34 +158,29 @@ export class PortMigrator {
     newDatasourceId: string
   ): Promise<void> {
     try {
-      console.log(`\n📋 Processing blueprint: ${blueprintIdentifier}`);
-      console.log('─'.repeat(50));
-
       // Fetch all entities for this blueprint
-      const entities = await this.client.searchEntitiesByBlueprint(
+      const entities = await this.client.searchOldEntitiesByBlueprint(
         blueprintIdentifier,
         oldInstallationId
       );
       this.stats.totalEntities += entities.length;
 
       if (entities.length === 0) {
-        console.log('No entities found for this blueprint');
+        Logger.log('  0 entities');
         return;
       }
 
-      console.log(`\n📊 Found ${entities.length} entities to migrate`);
+      Logger.log(`  Found ${entities.length} entities`);
 
       // Wait for user confirmation before migrating
-      await this.waitForUserInput(
-        `Ready to migrate these ${entities.length} entities? Press ENTER to continue...`
-      );
+      await this.waitForUserInput(`  Proceed? [y/N] `);
 
       // Patch entities in batches
       await this.patchEntitiesInBatches(blueprintIdentifier, entities, newDatasourceId);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to migrate blueprint';
       this.stats.errors.push(`Blueprint ${blueprintIdentifier}: ${errorMessage}`);
-      console.error(`❌ Error: ${errorMessage}`);
+      Logger.error(`error: ${errorMessage}`);
     }
   }
 
@@ -205,20 +192,13 @@ export class PortMigrator {
     entities: Entity[],
     newDatasourceId: string
   ): Promise<void> {
-    console.log(`\n🔄 Patching ${entities.length} entities in batches of ${BATCH_SIZE}...\n`);
-
     const batches = this.createBatches(entities, BATCH_SIZE);
     this.stats.totalBatches += batches.length;
 
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
-      const batchNumber = i + 1;
 
       try {
-        console.log(
-          `  Batch ${batchNumber}/${batches.length}: Patching ${batch.length} entities...`
-        );
-
         const entityIdentifiers = batch.map((entity) => entity.identifier);
         await this.client.patchEntitiesDatasourceBulk(
           blueprintIdentifier,
@@ -231,14 +211,11 @@ export class PortMigrator {
         this.stats.failedBatches++;
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error during batch patch';
-        this.stats.errors.push(
-          `Batch ${batchNumber} for blueprint ${blueprintIdentifier}: ${errorMessage}`
-        );
-        console.error(`  ❌ Batch ${batchNumber} failed: ${errorMessage}`);
+        this.stats.errors.push(`Batch ${i} for blueprint ${blueprintIdentifier}: ${errorMessage}`);
+        Logger.error(`  ❌ Batch ${i} failed: ${errorMessage}`);
       }
     }
-
-    console.log(
+    Logger.success(
       `✅ Completed patching for blueprint ${blueprintIdentifier}: ${this.stats.successfulBatches}/${batches.length} batches successful`
     );
   }
@@ -258,37 +235,28 @@ export class PortMigrator {
    * Print migration summary report
    */
   private printMigrationReport(): void {
-    console.log('\n' + '═'.repeat(60));
-    console.log('📊 MIGRATION SUMMARY REPORT');
-    console.log('═'.repeat(60) + '\n');
-
-    console.log('✅ Migration Statistics:');
-    console.log(`  • Total Blueprints: ${this.stats.totalBlueprints}`);
-    console.log(`  • Total Entities Migrated: ${this.stats.totalEntities}`);
-    console.log(`  • Total Batches: ${this.stats.totalBatches}`);
-    console.log(`  • Successful Batches: ${this.stats.successfulBatches}`);
-    console.log(`  • Failed Batches: ${this.stats.failedBatches}`);
+    Logger.log('');
+    Logger.log(`Blueprints migrated: ${this.stats.totalBlueprints}`);
+    Logger.log(`Entities migrated: ${this.stats.totalEntities}`);
+    Logger.log(`Batches: ${this.stats.successfulBatches}/${this.stats.totalBatches} successful`);
 
     if (this.stats.errors.length > 0) {
-      console.log(`\n⚠️  Errors (${this.stats.errors.length}):`);
-      this.stats.errors.forEach((error, index) => {
-        console.log(`  ${index + 1}. ${error}`);
+      Logger.log(`\nErrors:`);
+      this.stats.errors.forEach((error) => {
+        Logger.error(`  ${error}`);
       });
-    } else {
-      console.log('\n✅ No errors encountered');
     }
-
-    console.log('\n' + '═'.repeat(60) + '\n');
+    Logger.log('');
 
     const successRate =
       this.stats.totalBatches > 0
         ? ((this.stats.successfulBatches / this.stats.totalBatches) * 100).toFixed(2)
         : '0.00';
 
-    console.log(
+    Logger.log(
       this.stats.failedBatches === 0
         ? '🎉 Migration completed successfully!\n'
-        : `⚠️  Migration completed with ${this.stats.failedBatches} failed batches (Success rate: ${successRate}%)\n`
+        : `Migration completed with ${this.stats.failedBatches} failed batches (Success rate: ${successRate}%)\n`
     );
   }
 }

@@ -2,6 +2,9 @@
  * Utility functions for the migration tool
  */
 
+import { Logger } from './logger';
+import { PortApiClient } from './port-client';
+
 /**
  * Delay execution for a specified number of milliseconds
  */
@@ -28,7 +31,7 @@ export async function retryWithBackoff<T>(
 
       if (attempt < maxAttempts) {
         const delayMs = initialDelayMs * Math.pow(backoffMultiplier, attempt - 1);
-        console.log(`⏳ Retrying in ${delayMs}ms... (Attempt ${attempt}/${maxAttempts})`);
+        Logger.log(`⏳ Retrying in ${delayMs}ms... (Attempt ${attempt}/${maxAttempts})`);
         await delay(delayMs);
       }
     }
@@ -133,4 +136,15 @@ export function deepClone<T>(obj: T): T {
   }
 
   return obj;
+}
+
+/**
+ * Construct the new datasource ID from integration version and installation ID
+ */
+export async function getNewDatasourceId(
+  client: PortApiClient,
+  newInstallationId: string
+): Promise<string> {
+  const version = await client.getIntegrationVersion(newInstallationId);
+  return `port-ocean/github-ocean/${version}/${newInstallationId}/exporter`;
 }

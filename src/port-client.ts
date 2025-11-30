@@ -2,8 +2,10 @@
  * Port API Client - handles authentication and API communication with Port
  */
 
-import axios, { AxiosResponse } from 'axios';
+import axios from 'axios';
+import type { AxiosResponse } from 'axios';
 import { Entity, SearchResult, DataSource, BulkPatchRequest } from './types';
+import { Logger } from './logger';
 
 export class PortApiClient {
   private baseUrl: string;
@@ -20,7 +22,7 @@ export class PortApiClient {
 
   private async authenticate(): Promise<void> {
     try {
-      console.log('🔐 Authenticating with Port API...');
+      Logger.info('🔐 Authenticating with Port API...');
 
       const response = await axios.post(`${this.baseUrl}/v1/auth/access_token`, {
         clientId: this.clientId,
@@ -29,7 +31,7 @@ export class PortApiClient {
 
       this._token = response.data.accessToken;
       this._tokenExpiration = new Date(Date.now() + response.data.expiresIn * 1000);
-      console.log('✅ Authentication successful');
+      Logger.info('✅ Authentication successful');
     } catch (error) {
       throw new Error(`Authentication failed: ${this.getErrorMessage(error)}`);
     }
@@ -49,9 +51,36 @@ export class PortApiClient {
   /**
    * Fetch all blueprints affected by a specific data source (installation)
    */
+  async getIntegrationVersion(installationId: string): Promise<string> {
+    try {
+      Logger.log(`🔍 Fetching integration version for: ${installationId}`);
+
+      const response = await axios.get(`${this.baseUrl}/v1/integration/${installationId}`, {
+        headers: {
+          Authorization: `Bearer ${await this.getToken()}`,
+        },
+      });
+
+      const version = response.data.integration?.version;
+      if (!version) {
+        throw new Error('Integration version not found in response');
+      }
+
+      Logger.log(`✅ Integration version: ${version}`);
+      return version;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        throw new Error('Integration not found');
+      }
+      throw new Error(
+        `Failed to fetch integration version: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
   async getBlueprintsByDataSource(installationId: string): Promise<string[]> {
     try {
-      console.log(`📋 Fetching blueprints for installation: ${installationId}`);
+      Logger.info(`📋 Fetching blueprints for installation: ${installationId}`);
 
       // Query the datasources API to get related blueprints
       const response = await axios.get(`${this.baseUrl}/v1/data-sources`, {
@@ -68,7 +97,7 @@ export class PortApiClient {
         throw new Error(`No data sources found for installation: ${installationId}`);
       }
 
-      console.log(`Found ${dataSources.length} data sources for installation`);
+      Logger.info(`Found ${dataSources.length} data sources for installation`);
 
       // Get blueprints that use these data sources
       const blueprintsIdentifiers: Map<string, string> = new Map();
@@ -77,7 +106,7 @@ export class PortApiClient {
         .forEach((bp) => {
           blueprintsIdentifiers.set(bp.identifier, bp.identifier);
         });
-      console.log(`✅ Found ${blueprintsIdentifiers.size} affected blueprints`);
+      Logger.info(`✅ Found ${blueprintsIdentifiers.size} affected blueprints`);
 
       return Array.from(blueprintsIdentifiers.values());
     } catch (error) {
@@ -88,7 +117,10 @@ export class PortApiClient {
   /**
    * Search for all entities of a specific blueprint
    */
-  async searchEntitiesByBlueprint(blueprintIdentifier: string, oldInstallationId: string, additionalRules: any[] = []): Promise<Entity[]> {
+  private async searchEntitiesByBlueprint(
+    blueprintIdentifier: string,
+    query: object = {}
+  ): Promise<Entity[]> {
     try {
       const allEntities: Entity[] = [];
       let pageIndex = 0;
@@ -96,30 +128,12 @@ export class PortApiClient {
       const limit = 200;
 
       while (true) {
-        console.log(
-          `🔍 Searching entities for blueprint: ${blueprintIdentifier} - page ${pageIndex + 1}`
-        );
         const response: AxiosResponse<SearchResult> = await axios.post(
           `${this.baseUrl}/v1/blueprints/${blueprintIdentifier}/entities/search`,
           {
             limit,
             ...(pageIndex > 0 ? { from: next } : {}),
-            query: {
-              combinator: 'and',
-              rules: [
-                {
-                  property: '$datasource',
-                  operator: 'contains',
-                  value: 'port/github/v1.0.0',
-                },
-                {
-                  property: '$datasource',
-                  operator: 'contains',
-                  value: oldInstallationId,
-                },
-                ...additionalRules,
-              ],
-            },
+            query,
           },
           {
             headers: {
@@ -147,6 +161,48 @@ export class PortApiClient {
     }
   }
 
+  async searchOldEntitiesByBlueprint(
+    blueprintIdentifier: string,
+    oldInstallationId: string
+  ): Promise<Entity[]> {
+    return this.searchEntitiesByBlueprint(blueprintIdentifier, {
+      combinator: 'and',
+      rules: [
+        {
+          property: '$datasource',
+          operator: 'contains',
+          value: 'port/github/v1.0.0',
+        },
+        {
+          property: '$datasource',
+          operator: 'contains',
+          value: oldInstallationId,
+        },
+      ],
+    });
+  }
+
+  async searchNewEntitiesByBlueprint(
+    blueprintIdentifier: string,
+    newInstallationId: string
+  ): Promise<Entity[]> {
+    return this.searchEntitiesByBlueprint(blueprintIdentifier, {
+      combinator: 'and',
+      rules: [
+        {
+          property: '$datasource',
+          operator: 'contains',
+          value: 'port-ocean/github-ocean',
+        },
+        {
+          property: '$datasource',
+          operator: 'contains',
+          value: `${newInstallationId}/exporter`,
+        },
+      ],
+    });
+  }
+
   /**
    * Patch entities' datasource in bulk
    */
@@ -156,7 +212,7 @@ export class PortApiClient {
     newDatasource: string
   ): Promise<void> {
     if (entitiesIdentifiers.length === 0) {
-      console.log('⏭️  Skipping batch - no entities to patch');
+      Logger.info('⏭️  Skipping batch - no entities to patch');
       return;
     }
 
@@ -176,7 +232,7 @@ export class PortApiClient {
         }
       );
 
-      console.log(
+      Logger.success(
         `✅ Successfully patched ${entitiesIdentifiers.length} entities to datasource: ${newDatasource}`
       );
     } catch (error) {

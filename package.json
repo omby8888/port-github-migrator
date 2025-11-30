@@ -29,9 +29,19 @@
     "pkg": "^5.8.1"
   },
   "pkg": {
-    "scripts": ["dist/**/*.js"],
-    "targets": ["node18-linux-x64", "node18-macos-x64", "node18-macos-arm64", "node18-win-x64"],
+    "scripts": [
+      "dist/**/*.js"
+    ],
+    "targets": [
+      "node18-linux-x64",
+      "node18-macos-x64",
+      "node18-macos-arm64",
+      "node18-win-x64"
+    ],
     "outputPath": "bin",
-    "compress": "Brotli"
+    "compress": "Brotli",
+    "assets": [
+      "node_modules/axios/**/*"
+    ]
   }
 }

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+bin/
 *.log
 .env
 .env.local
@@ -12,4 +13,4 @@ dist/
 .idea/
 coverage/
 .nyc_output/
-
+output/
