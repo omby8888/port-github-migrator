@@ -1,34 +1,48 @@
 # Port GitHub App to GitHub Ocean Migration Tool
 
-A CLI tool to safely migrate Port entities from the legacy GitHub App integration to the new GitHub Ocean integration.
+A fast, single-file CLI tool written in Go to safely migrate Port entities from the legacy GitHub App integration to the new GitHub Ocean integration.
 
-## Overview
+## Features
 
-This tool helps you migrate entity ownership from the old GitHub App integration to the new GitHub Ocean integration in Port. It provides commands to compare entities and perform controlled, blueprint-by-blueprint migrations.
+- ✨ **Tiny binaries** - ~8-12MB single executable (no dependencies needed)
+- 🚀 **Fast startup** - Go binary vs Node.js
+- 🔒 **Safe migration** - Dry-run mode and diffing before migration
+- 📊 **Entity comparison** - See differences between old and new datasources
+- 🎯 **Blueprint-by-blueprint** - Migrate one blueprint at a time or all at once
 
 ## Installation
 
 ### Quick Install (Recommended)
 
-Download and install the binary for your platform:
+One-line installation that automatically downloads the correct binary for your platform:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/your-org/port-github-migration/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/omby8888/port-github-migrator/main/install.sh | bash
 ```
 
-This will automatically download the correct binary for your OS (macOS/Linux) and add it to your PATH.
-
-### Manual Installation
-
-1. Download the binary for your platform from [GitHub Releases](https://github.com/your-org/port-github-migration/releases)
-2. Make it executable: `chmod +x port-github-migrator-*`
-3. Move to your PATH: `sudo mv port-github-migrator-* /usr/local/bin/port-github-migrator`
+The script will:
+- Detect your OS and architecture (macOS, Linux, Windows)
+- Download the appropriate binary from GitHub Releases
+- Verify the binary works
+- Install to `/usr/local/bin/port-github-migrator`
 
 ### Verify Installation
 
 ```bash
 port-github-migrator --version
 ```
+
+### Manual Installation
+
+If you prefer manual installation:
+
+1. Go to [GitHub Releases](https://github.com/omby8888/port-github-migrator/releases)
+2. Download the binary for your platform (e.g., `port-github-migrator-macos-arm64`)
+3. Make it executable and move to your PATH:
+   ```bash
+   chmod +x port-github-migrator-macos-arm64
+   sudo mv port-github-migrator-macos-arm64 /usr/local/bin/port-github-migrator
+   ```
 
 ## Configuration
 
@@ -48,119 +62,156 @@ Alternatively, pass these as CLI flags:
 
 ```bash
 port-github-migrator migrate githubRepository \
-  --client-id YOUR_ID \
-  --client-secret YOUR_SECRET \
-  --old-installation-id OLD_ID \
-  --new-installation-id NEW_ID
+  --client-id your_id \
+  --client-secret your_secret \
+  --old-installation-id 97280772 \
+  --new-installation-id 12345678
 ```
 
-Or use all flags without `.env`:
+## Usage
+
+### Get Blueprints
+
+List all blueprints managed by the old GitHub App installation:
 
 ```bash
-export PORT_CLIENT_ID=YOUR_ID
-export PORT_CLIENT_SECRET=YOUR_SECRET
-export OLD_INSTALLATION_ID=OLD_ID
-export NEW_INSTALLATION_ID=NEW_ID
+port-github-migrator get-blueprints
+```
 
+### Compare Entities (Diff)
+
+Compare entities between the old and new installations:
+
+```bash
+port-github-migrator get-diff githubRepository githubRepository-new \
+  --show-diffs \
+  --limit 10
+```
+
+### Migrate Entities
+
+Migrate entities from old to new installation:
+
+```bash
+# Migrate single blueprint
 port-github-migrator migrate githubRepository
-```
-
-## Commands
-
-### migrate
-
-Migrate entities from a specific blueprint or all blueprints to the new integration.
-
-```bash
-port-github-migrator migrate [blueprint] [options]
-```
-
-**Options:**
-
-- `--all` - Migrate all blueprints (default if no blueprint specified)
-- `--dry-run` - Preview what would be migrated without making changes
-
-**Examples:**
-
-```bash
-# Migrate a single blueprint
-port-github-migrator migrate githubRepository
-
-# Dry run to see what would happen
-port-github-migrator migrate githubRepository --dry-run
 
 # Migrate all blueprints
-port-github-migrator migrate --all
+port-github-migrator migrate all
+
+# Dry-run (see what would be migrated)
+port-github-migrator migrate githubRepository --dry-run
 ```
 
-### get-blueprints
+## Development
 
-List all blueprints managed by the old GitHub App integration.
+### Prerequisites
+
+- Go 1.21+
+
+### Build
 
 ```bash
-port-github-migrator get-blueprints [options]
+# Build for current platform
+make build
+
+# Run the binary
+./bin/port-github-migrator --help
 ```
 
-**Options:**
-
-- `--verbose` - Show detailed output
-
-### get-diff
-
-Compare entities between source and target blueprints to identify differences.
+### Build for All Platforms
 
 ```bash
-port-github-migrator get-diff <sourceBlueprint> <targetBlueprint> [options]
+make build-release
+ls -lh bin/
 ```
 
-**Options:**
+This will create binaries for:
+- Linux x64
+- macOS x64
+- macOS arm64
+- Windows x64
 
-- `--output <file>` - Export detailed diff report to JSON file
-- `--show-diffs` - Display field-level differences for changed entities (default: enabled)
-- `--limit <n>` - Limit shown changed entities (default: 10)
-- `--verbose` - Show detailed output
-
-**Examples:**
+### Code Quality
 
 ```bash
-# Compare blueprints
-port-github-migrator get-diff githubRepository githubRepository
+# Format code
+make fmt
 
-# Export detailed report
-port-github-migrator get-diff githubRepository githubRepository --output diff-report.json
+# Lint code
+make vet
 
-# Show more changed entities
-port-github-migrator get-diff githubRepository githubRepository --limit 50
+# Run tests
+make test
 ```
 
-## Migration Guide
+## Binary Sizes
 
-See [MIGRATION.md](./MIGRATION.md) for detailed step-by-step instructions on migrating from GitHub App to GitHub Ocean.
+| Platform | Size |
+|----------|------|
+| Linux x64 | ~10MB |
+| macOS x64 | ~11MB |
+| macOS arm64 | ~10MB |
+| Windows x64 | ~11MB |
+
+All are single-file executables with zero external dependencies!
+
+## Commands Reference
+
+```
+USAGE:
+  port-github-migrator [flags] [command]
+
+GLOBAL FLAGS:
+  --port-url string                Port API URL (default: https://api.getport.io)
+  --client-id string              Port API Client ID
+  --client-secret string          Port API Client Secret
+  --old-installation-id string    Old GitHub App Installation ID
+  --new-installation-id string    New GitHub Ocean Installation ID
+  --verbose                       Enable verbose logging
+  -h, --help                      Show this help message
+
+COMMANDS:
+  migrate       Migrate entities from a specific blueprint or all blueprints
+  get-blueprints Get all blueprints managed by the old installation
+  get-diff      Compare entities between source and target blueprints
+```
+
+## Migration Workflow
+
+1. **Backup** - Ensure you have backups of your Port configuration
+2. **Prepare** - Install the new GitHub Ocean integration
+3. **Preview** - Use `get-diff` to compare entities
+4. **Dry-run** - Use `--dry-run` flag to see what will be migrated
+5. **Migrate** - Run migration for each blueprint or all at once
+6. **Verify** - Check Port UI to confirm migration succeeded
 
 ## Troubleshooting
 
-### Invalid Credentials
+### Binary won't run on macOS
 
-If you get "Authentication failed: Invalid credentials", verify:
+If you see "cannot be opened because the developer cannot be verified":
 
-- Your credentials are correct in Port
-- Your API token hasn't expired
-- You're using the correct Port API URL
+```bash
+sudo xattr -rd com.apple.quarantine /usr/local/bin/port-github-migrator
+```
 
-### No Entities Found
+### Missing credentials
 
-If "No entities found to migrate" appears:
+Make sure your `.env` file exists in the current directory or set environment variables:
 
-- Ensure the blueprint has entities created by the old GitHub App integration
-- Verify the `OLD_INSTALLATION_ID` is correct
+```bash
+export PORT_CLIENT_ID=your_id
+export PORT_CLIENT_SECRET=your_secret
+export OLD_INSTALLATION_ID=123
+export NEW_INSTALLATION_ID=456
+port-github-migrator migrate all
+```
 
-### Missing Blueprints
+## License
 
-If blueprints don't appear in `get-blueprints`:
-
-- Ensure the old GitHub App integration is still active in Port
-- Verify the installation ID matches your GitHub App installation
+MIT
 
 ## Support
 
-For issues or questions, contact Port support or refer to the [Port documentation](https://docs.getport.io).
+For issues or questions, please open an issue on [GitHub](https://github.com/omby8888/port-github-migrator/issues).

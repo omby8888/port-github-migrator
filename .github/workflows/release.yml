@@ -10,45 +10,39 @@ permissions:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-            target: linux-x64
-            asset_name: port-github-migrator-linux-x64
-          - os: macos-latest
-            target: macos-x64
-            asset_name: port-github-migrator-macos-x64
-          - os: macos-latest
-            target: macos-arm64
-            asset_name: port-github-migrator-macos-arm64
-          - os: windows-latest
-            target: win-x64
-            asset_name: port-github-migrator-win-x64.exe
+          - os: linux
+            arch: amd64
+            asset: port-github-migrator-linux-x64
+          - os: darwin
+            arch: amd64
+            asset: port-github-migrator-macos-x64
+          - os: darwin
+            arch: arm64
+            asset: port-github-migrator-macos-arm64
+          - os: windows
+            arch: amd64
+            asset: port-github-migrator-win-x64.exe
 
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-go@v4
         with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build TypeScript
-        run: npm run build
-
-      - name: Install pkg
-        run: npm install -g pkg
+          go-version: '1.21'
 
       - name: Build binary
-        run: pkg dist/cli.js --target node18-${{ matrix.target }} --output bin/${{ matrix.asset_name }}
+        run: |
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build \
+            -ldflags="-X main.Version=${{ github.ref_name }} -s -w" \
+            -o bin/${{ matrix.asset }} ./cmd
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
         with:
-          files: bin/${{ matrix.asset_name }}
+          files: bin/${{ matrix.asset }}
           token: ${{ github.token }}
