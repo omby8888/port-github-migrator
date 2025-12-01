@@ -87,6 +87,14 @@ func (m *Migrator) Migrate(newDatasourceID string, blueprintID *string, dryRun b
 	// Migrate each blueprint
 	for _, bp := range blueprints {
 		count := blueprintCounts[bp]
+		
+		// Skip blueprints with no entities
+		if count == 0 {
+			fmt.Printf("\n🔄 Migrating %d entities from blueprint: %s\n", count, bp)
+			fmt.Println("⏭️  No entities to migrate")
+			continue
+		}
+		
 		fmt.Printf("\n🔄 Migrating %d entities from blueprint: %s\n", count, bp)
 
 		if !dryRun {

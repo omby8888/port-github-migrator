@@ -11,15 +11,9 @@ import (
 
 func NewMigrateCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "migrate <blueprint>",
+		Use:          "migrate [blueprint]",
 		Short:        "Migrate Ownership of entities from a specific blueprint or all blueprints",
 		Long:         `Migrate Ownership of entities from the old GitHub App integration to the new GitHub Ocean integration.`,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("❌ blueprint argument is required. Usage: migrate <blueprint|all>")
-			}
-			return nil
-		},
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			portURL, _ := cmd.Flags().GetString("port-url")
@@ -28,8 +22,20 @@ func NewMigrateCommand() *cobra.Command {
 			oldInstallID, _ := cmd.Flags().GetString("old-installation-id")
 			newInstallID, _ := cmd.Flags().GetString("new-installation-id")
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
+			all, _ := cmd.Flags().GetBool("all")
 
-			blueprint := args[0]
+			// Validate blueprint or --all flag
+			if len(args) == 0 && !all {
+				return fmt.Errorf("❌ either provide a blueprint name or use --all flag. Usage: migrate <blueprint> or migrate --all")
+			}
+			if len(args) > 0 && all {
+				return fmt.Errorf("❌ cannot use both blueprint argument and --all flag")
+			}
+
+			blueprint := ""
+			if len(args) > 0 {
+				blueprint = args[0]
+			}
 
 			// Validate required parameters
 			var missing []string
@@ -73,19 +79,49 @@ func NewMigrateCommand() *cobra.Command {
 			// Create migrator
 			mig := migrator.NewMigrator(client, config)
 
-			// Determine if migrating single blueprint or all
-			var bp *string
-			if blueprint != "all" {
-				bp = &blueprint
+		// If migrating "all", show blueprints with entity counts first
+		if all {
+			fmt.Println("📋 Blueprints to migrate:")
+			fmt.Println("NAME                              ENTITIES")
+			fmt.Println("──────────────────────────────────────────")
+			
+			blueprints, err := client.GetBlueprintsByDataSource(oldInstallID)
+			if err != nil {
+				return fmt.Errorf("failed to get blueprints: %w", err)
 			}
+			
+			for _, bp := range blueprints {
+				entities, err := client.SearchOldEntitiesByBlueprint(bp, oldInstallID)
+				if err != nil {
+					fmt.Printf("%-33s ?\n", bp)
+					continue
+				}
+				count := len(entities)
+				
+				// Skip empty blueprints (no entities to migrate)
+				if count == 0 {
+					continue
+				}
+				
+				fmt.Printf("%-33s %d\n", bp, count)
+			}
+			fmt.Println()
+		}
 
-			// Run migration
-			_, err = mig.Migrate(newDatasourceID, bp, dryRun)
-			return err
+		// Determine if migrating single blueprint or all
+		var bp *string
+		if !all && blueprint != "" {
+			bp = &blueprint
+		}
+
+		// Run migration
+		_, err = mig.Migrate(newDatasourceID, bp, dryRun)
+		return err
 		},
 	}
 
 	cmd.Flags().Bool("dry-run", false, "Show what would be migrated without making changes")
+	cmd.Flags().Bool("all", false, "Migrate all blueprints with entities")
 
 	return cmd
 }

@@ -19,6 +19,7 @@ func NewGetBlueprintsCommand() *cobra.Command {
 			clientID, _ := cmd.Flags().GetString("client-id")
 			clientSecret, _ := cmd.Flags().GetString("client-secret")
 			oldInstallID, _ := cmd.Flags().GetString("old-installation-id")
+			includeEmpty, _ := cmd.Flags().GetBool("include-empty")
 
 			// Validate required parameters
 			var missing []string
@@ -44,18 +45,34 @@ func NewGetBlueprintsCommand() *cobra.Command {
 				return fmt.Errorf("failed to get blueprints: %w", err)
 			}
 
-			// Sort and display
+			// Sort and display with entity counts
 			sort.Strings(blueprints)
 
-			fmt.Println("NAME")
-			fmt.Println("────────────────────────")
+			fmt.Println("NAME                              ENTITIES")
+			fmt.Println("──────────────────────────────────────────")
 			for _, bp := range blueprints {
-				fmt.Println(bp)
+				// Count entities for this blueprint
+				entities, err := client.SearchOldEntitiesByBlueprint(bp, oldInstallID)
+				if err != nil {
+					// If we can't get count, just show the blueprint name
+					fmt.Printf("%-33s ?\n", bp)
+					continue
+				}
+				count := len(entities)
+				
+				// Skip empty blueprints unless --include-empty is set
+				if count == 0 && !includeEmpty {
+					continue
+				}
+				
+				fmt.Printf("%-33s %d\n", bp, count)
 			}
 
 			return nil
 		},
 	}
+
+	cmd.Flags().Bool("include-empty", false, "Include blueprints with 0 entities")
 
 	return cmd
 }
